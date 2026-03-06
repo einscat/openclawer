@@ -1,0 +1,106 @@
+version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+services:
+  openclaw-init:
+    container_name: ${CONTAINER_PREFIX}-openclaw-init
+    image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
+    init: true  # 标记为 init 容器，执行完退出
+    user: root # 临时使用 root 启动以修复宿主机目录挂载权限
+    volumes:
+      - ./openclaw/init-config.sh:/init-config.sh:ro
+      - ${PERSIST_DIR}/openclaw/config:/home/node/.openclaw
+      - ${PERSIST_DIR}/openclaw/workspace:/home/node/.openclaw/workspace
+    environment:
+      - OPENCLAW_VERSION=${OPENCLAW_VERSION}
+      # 👇 新增这一行，让 init 容器能拿到 Token
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - OPENCLAW_DOMAIN_ENABLE=${DOMAIN_ENABLE}
+      - OPENCLAW_ALLOWED_ORIGINS=${OPENCLAW_ALLOWED_ORIGINS}
+    command: ["/init-config.sh"]
+    secrets:
+      - openclaw_gateway_token
+    networks:
+      - infra-internal
+
+  openclaw-gateway:
+    container_name: ${CONTAINER_PREFIX}-openclaw-gateway
+    image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
+    restart: unless-stopped
+    logging: *default-logging
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - TZ=${TIMEZONE:-Asia/Shanghai}
+      - OPENCLAW_VERSION=${OPENCLAW_VERSION}
+      - HOME=/home/node
+      - TERM=xterm-256color
+      - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=2048
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,openclaw-gateway,n8n,mysql80,postgres18}
+      # 👇 核心：通过环境变量动态接收你的 .env.prod 配置，免去交互引导
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    command: ["node", "dist/index.js", "gateway", "--bind", "lan"]
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789" # IP 模式：暴露到 0.0.0.0，允许 IP 直连
+    volumes:
+      - ${PERSIST_DIR}/openclaw/config:/home/node/.openclaw
+      - ${PERSIST_DIR}/openclaw/workspace:/home/node/.openclaw/workspace
+    networks:
+      - infra-internal
+    depends_on:
+        openclaw-init:
+          condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:18789/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          # noinspection ComposeUnknownValues
+          memory: "${OPENCLAW_MEM_LIMIT:-4G}"
+          # noinspection ComposeUnknownValues
+          cpus: "${OPENCLAW_CPU_LIMIT:-2.0}"
+        reservations:
+          # noinspection ComposeUnknownValues
+          memory: "${OPENCLAW_MEM_RESERVATION:-1G}"
+
+  # 🚀 官方命令行工具容器
+  openclaw-cli:
+    container_name: ${CONTAINER_PREFIX}-openclaw-cli
+    image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
+    profiles: ["cli"] # 使用 profile，防止被 up -d 自动作为常驻服务启动
+    environment:
+      - TZ=${TIMEZONE:-Asia/Shanghai}
+      - OPENCLAW_VERSION=${OPENCLAW_VERSION}
+      - HOME=/home/node
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    volumes:
+      - ${PERSIST_DIR}/openclaw/config:/home/node/.openclaw
+      - ${PERSIST_DIR}/openclaw/workspace:/home/node/.openclaw/workspace
+    networks:
+      - infra-internal
+
+secrets:
+  openclaw_gateway_token:
+    file: ${SECRETS_BASE_DIR:-./secrets}/openclaw_gateway_token.txt
+
+networks:
+  infra-internal:               # 内部逻辑名
+    name: app-infra-net         # 定义物理网络名，方便后续数据库、应用容器接入
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24 # 定义网段 CIDR
+          gateway: 172.20.0.1   # (可选) 显式指定网关，通常是网段的第一个 IP
+
