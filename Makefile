@@ -26,3 +26,6 @@ REQUEST_ID_CLEAN = $(shell docker exec app-openclaw-gateway openclaw devices lis
 approve:
 	@echo "Request ID 是：$(REQUEST_ID_CLEAN)"
 	docker exec -it app-openclaw-gateway openclaw devices approve $(REQUEST_ID_CLEAN)
+
+config:
+	docker exec -it app-openclaw-gateway openclaw config
