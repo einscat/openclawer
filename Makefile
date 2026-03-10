@@ -4,6 +4,8 @@ make openssl:
 	openssl rand -hex 32
 
 # 生成 64 位十六进制 token 并写入 .env
+# GNU sed (Linux, Git Bash, MSYS2, WSL 等)
+# BSD sed (macOS)
 token:
 	@echo "正在生成新的 OPENCLAW_GATEWAY_TOKEN..."
 	@NEW_TOKEN=$$(openssl rand -hex 32); \
