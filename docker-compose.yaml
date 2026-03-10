@@ -20,9 +20,11 @@ services:
       - OPENCLAW_VERSION=${OPENCLAW_VERSION}
       # 👇 新增这一行，让 init 容器能拿到 Token
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
-      - OPENCLAW_DOMAIN_ENABLE=${DOMAIN_ENABLE}
+      - OPENCLAW_DOMAIN_ENABLE=${OPENCLAW_DOMAIN_ENABLE}
       - OPENCLAW_ALLOWED_ORIGINS=${OPENCLAW_ALLOWED_ORIGINS}
-    command: ["/init-config.sh"]
+      - NODE_NO_WARNINGS=1  # 屏蔽所有 deprecation 警告
+      - NODE_OPTIONS=--no-deprecation=DEP0040 # 或者更精准一点（只屏蔽 DEP0040）
+    command: [ "/init-config.sh" ]
     secrets:
       - openclaw_gateway_token
     networks:
@@ -46,19 +48,19 @@ services:
       - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,openclaw-gateway,n8n,mysql80,postgres18}
       # 👇 核心：通过环境变量动态接收你的 .env.prod 配置，免去交互引导
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
-    command: ["node", "dist/index.js", "gateway", "--bind", "lan"]
     ports:
-      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789" # IP 模式：暴露到 0.0.0.0，允许 IP 直连
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    command: [ "node", "dist/index.js", "gateway", "--bind", "lan" ]    # 容器环境不适用loopback
     volumes:
       - ${PERSIST_DIR}/openclaw/config:/home/node/.openclaw
       - ${PERSIST_DIR}/openclaw/workspace:/home/node/.openclaw/workspace
     networks:
       - infra-internal
     depends_on:
-        openclaw-init:
-          condition: service_completed_successfully
+      openclaw-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:18789/ || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:18789/ || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -78,7 +80,7 @@ services:
   openclaw-cli:
     container_name: ${CONTAINER_PREFIX}-openclaw-cli
     image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
-    profiles: ["cli"] # 使用 profile，防止被 up -d 自动作为常驻服务启动
+    profiles: [ "cli" ] # 使用 profile，防止被 up -d 自动作为常驻服务启动
     environment:
       - TZ=${TIMEZONE:-Asia/Shanghai}
       - OPENCLAW_VERSION=${OPENCLAW_VERSION}
