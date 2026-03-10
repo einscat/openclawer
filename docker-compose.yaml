@@ -7,6 +7,7 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+
   openclaw-init:
     container_name: ${CONTAINER_PREFIX}-openclaw-init
     image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
@@ -24,7 +25,7 @@ services:
       - OPENCLAW_ALLOWED_ORIGINS=${OPENCLAW_ALLOWED_ORIGINS}
       - NODE_NO_WARNINGS=1  # 屏蔽所有 deprecation 警告
       - NODE_OPTIONS=--no-deprecation=DEP0040 # 或者更精准一点（只屏蔽 DEP0040）
-    command: [ "/init-config.sh" ]
+    command: ["/init-config.sh"]
     secrets:
       - openclaw_gateway_token
     networks:
@@ -50,7 +51,7 @@ services:
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
     ports:
       - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-    command: [ "node", "dist/index.js", "gateway", "--bind", "lan" ]    # 容器环境不适用loopback
+    command: ["node", "dist/index.js", "gateway", "--bind", "lan"]    # 容器环境不适用loopback
     volumes:
       - ${PERSIST_DIR}/openclaw/config:/home/node/.openclaw
       - ${PERSIST_DIR}/openclaw/workspace:/home/node/.openclaw/workspace
@@ -60,7 +61,7 @@ services:
       openclaw-init:
         condition: service_completed_successfully
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:18789/ || exit 1" ]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:18789/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -80,7 +81,7 @@ services:
   openclaw-cli:
     container_name: ${CONTAINER_PREFIX}-openclaw-cli
     image: ${OPENCLAW_IMAGE}:${OPENCLAW_VERSION}
-    profiles: [ "cli" ] # 使用 profile，防止被 up -d 自动作为常驻服务启动
+    profiles: ["cli"] # 使用 profile，防止被 up -d 自动作为常驻服务启动
     environment:
       - TZ=${TIMEZONE:-Asia/Shanghai}
       - OPENCLAW_VERSION=${OPENCLAW_VERSION}
@@ -93,8 +94,10 @@ services:
       - infra-internal
 
 secrets:
+  # OpenClaw
   openclaw_gateway_token:
     file: ${SECRETS_BASE_DIR:-./secrets}/openclaw_gateway_token.txt
+
 
 networks:
   infra-internal:               # 内部逻辑名

@@ -1,5 +1,23 @@
 UNAME_S := $(shell uname -s)
 
+make openssl:
+	openssl rand -hex 32
+
+# 生成 64 位十六进制 token 并写入 .env
+token:
+	@echo "正在生成新的 OPENCLAW_GATEWAY_TOKEN..."
+	@openssl rand -hex 32 | { read token; \
+		if grep -q "^OPENCLAW_GATEWAY_TOKEN=" .env 2>/dev/null; then \
+			sed -i '' "s|^OPENCLAW_GATEWAY_TOKEN=.*|OPENCLAW_GATEWAY_TOKEN=$$token|" .env; \
+		else \
+			echo "OPENCLAW_GATEWAY_TOKEN=$$token" >> .env; \
+		fi; \
+		echo "已写入 OPENCLAW_GATEWAY_TOKEN=$$token"; \
+	}
+
+pull:
+	docker compose --env-file .env pull
+
 up:
 ifeq ($(UNAME_S),Darwin)
 	docker compose --env-file .env up -d --remove-orphans --force-recreate
@@ -29,3 +47,4 @@ approve:
 
 config:
 	docker exec -it app-openclaw-gateway openclaw config
+
