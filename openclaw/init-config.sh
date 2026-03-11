@@ -20,10 +20,6 @@ fi
 
 # 2. 解析网关绑定模式
 BIND_MODE="lan"
-# 容器环境不适用loopback，loopback仅适用于本地环境
-#if [ "${OPENCLAW_DOMAIN_ENABLE:-false}" = "true" ]; then
-#  BIND_MODE="loopback"
-#fi
 
 DEBUG_MODE="true"
 if [ "${OPENCLAW_DOMAIN_ENABLE:-false}" = "true" ]; then
